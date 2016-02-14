@@ -1,0 +1,154 @@
+---
+title: "Practical Machine Learning Final Project"
+author: "Anonymous"
+date: "February 13, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache=TRUE)
+```
+
+
+# Background
+
+This is the final project for the Cousera "Practical Machine Learning" class. 
+The relevant background for the data is as follows:
+
+> Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+>
+> Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes. Participants were supervised by an experienced weight lifter to make sure the execution complied to the manner they were supposed to simulate. The exercises were performed by six male participants aged between 20-28 years, with little weight lifting experience. We made sure that all participants could easily simulate the mistakes in a safe and controlled manner by using a relatively light dumbbell (1.25kg).
+
+## Acknowledgement
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. We appreciate the generosity in allowing their data to be used for this kind of assignment.
+
+# My Model
+In this project, I created a model to predict the class of subjects in a **test** dataset. I built the model using a **training** dataset.
+
+## Preliminaries
+The library calls:
+```{r}
+# Library calls
+library(magrittr)
+library(dplyr)
+library(caret)
+library(rattle)
+```
+
+## Read in the data
+I read in the data in mid-February, 2016 using the following commands:
+```{r cache=TRUE}
+train_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+train_data <- read.csv(train_url)
+
+train_data_orig <- train_data # Keep a copy so we dont need to reload
+
+train_data <- train_data_orig # Run if necessary
+
+test_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+test_data <- read.csv(test_url)
+
+```
+
+## Data Munging
+```{r}
+# Step 2: Data Munging
+str(train_data)
+```
+
+Clearly many of the variables are not well populated. Lets figure out which ones.
+```{r}
+missing <- lapply(X = train_data, FUN = function(var) {
+  length(which(is.na(var))) / nrow(train_data)
+}) %>%
+  unlist()
+missing
+```
+
+I decided to drop the variables that are missing for ~97.9% of our records.
+```{r}
+train_data <- train_data[,-which(missing > 0)]
+```
+
+Now lets look at a summary of the variables we have left:
+```{r}
+str(train_data)
+```
+
+The data are a mix of numeric(integer) and factor variables.
+Let's look at the factor variables
+```{r}
+which_factors <- which(lapply(X = train_data, FUN = class) == "factor")
+lapply(X = train_data[,which_factors], summary)
+```
+Looks like many of these were converted to factors because there were missing
+values on 19216/19622 = ~97.9% of the data. (hmm - it's that same 97.9% again!).
+So we can should drop these as well
+
+```{r}
+train_data <- train_data[,-which_factors]
+```
+
+But of course, we need to keep classe
+```{r}
+train_data$classe <- train_data_orig$classe
+```
+
+OK - That is better, we I have some usuable data.
+
+
+# The tree model
+First, I try a tree:
+```{r}
+mod_fit_tree <- train(form = classe~., data = train_data[, -1], method = "rpart")
+fancyRpartPlot(mod_fit_tree$finalModel)
+
+```
+
+That's not so good. This model didn't predict any of the Ds.
+
+# A random forest model
+So I tried a random forest.
+```{r rf_fit, cache=TRUE}
+mod_fit_rf <- train(form = classe~., data = train_data[, -1], method = "rf")
+
+mod_fit_rf$finalModel
+mod_fit_rf
+```
+
+Wow - that took a **long** time, good thing I set cache = TRUE.
+This looks pretty good, but do the variables used make sense?
+```{r}
+varImpPlot(mod_fit_rf$finalModel)
+```
+They do!
+
+# Cross validation,
+
+There was no need to use cross validation since the train function in caret handles that for us.
+
+I could have used cross-validation in selecting the model but it was pretty clear that the classification tree was not going to perform well. 
+
+# out of sample error rate
+Since the method is already cross-validated, I expect the out of sample error rate to have a minumum value of
+
+```{r}
+trees <- mod_fit_rf$finalModel$ntree
+oos_error <- paste(round(mod_fit_rf$finalModel$err.rate[trees ,"OOB"] * 100, 2), "percent")
+print(oos_error)
+```
+
+
+
+
+# Prediction
+Now lets predit the class for the 20 subjects in the **test** dataset.
+```{r}
+preds_rf <- predict(mod_fit_rf, test_data)
+table(preds_rf)
+data.frame(numer = 1:20, preds_rf)
+```
+
+I just submitted these for my quiz and got a 20/20.
+**YEAH!!!**

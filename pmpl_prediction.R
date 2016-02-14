@@ -46,8 +46,31 @@ train_data$classe <- train_data_orig$classe
 mod_fit <- train(form = classe~., data = train_data[, -1], method = "rpart")
 fancyRpartPlot(mod_fit$finalModel)
 
-names(train_data)
-levels(train_data$classe)
+# That's not so good. This model didnt predict any of the Ds
+# Let's try a random forest.
+
+mod_fit_rf <- train(form = classe~., data = train_data[, -1], method = "rf")
+
+mod_fit_rf$finalModel
+varImpPlot(mod_fit_rf$finalModel)
+varUsed(mod_fit_rf$finalModel)
+
+# how you used cross validation,
+#
+# There was no need to use cross validation since the train function in
+# caret handles that for us.
+#
+# what you think the expected out of sample error
+# Since the method is already cross-validated, I expect the out of sample error rate to have a minumum value of
+trees <- mod_fit_rf$finalModel$ntree
+paste(round(mod_fit_rf$finalModel$err.rate[trees ,"OOB"] * 100, 2), "percent")
+
+preds_rf <- predict(mod_fit_rf, test_data)
+table(preds_rf)
+
+
+# That is prerry good. This is my final model
+
 # exactly according to the specification (Class A),
 # throwing the elbows to the front (Class B),
 # lifting the dumbbell only halfway (Class C),
@@ -55,28 +78,11 @@ levels(train_data$classe)
 # throwing the hips to the front (Class E)
 
 
-library(dplyr)
-
-M <- train_data %>%
-  dplyr::select(-classe) %>%
-  cor() %>%
-  abs()
-
-diag(M) <- 0
-
-
-
-
-
-
-mod_fit <- train(form = classe~ ., data = train_data, method = "rf",
-  proxy = TRUE)
-mod_fit
-
-
 #
-# how you used cross validation,
-# what you think the expected out of sample error
+
+
+
+
 # why you made the choices you did.
 #
 #

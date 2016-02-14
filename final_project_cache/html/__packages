@@ -1,0 +1,9 @@
+base
+magrittr
+dplyr
+lattice
+ggplot2
+caret
+rattle
+rpart
+randomForest
